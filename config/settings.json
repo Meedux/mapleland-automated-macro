@@ -1,0 +1,21 @@
+{
+  "hotkeys": {
+    "start": "f9",
+    "stop": "f10",
+    "loot": "z"
+  },
+  "combat": {
+    "skill_sequence": ["1", "2", "3"],
+    "skill_delay_ms": 200
+  },
+  "potion": {
+    "hp_threshold": 50,
+    "mp_threshold": 30,
+    "hp_potion_key": "q",
+    "mp_potion_key": "w"
+  },
+  "vision": {
+    "mob_templates_path": "assets/mob_templates",
+    "ui_elements_path": "assets/ui_elements"
+  }
+}
