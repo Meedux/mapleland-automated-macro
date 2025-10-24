@@ -139,3 +139,5 @@ easyocr_models/
 # OS/IDE
 Thumbs.db
 .DS_Store
+
+config/
