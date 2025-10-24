@@ -1,11 +1,29 @@
 {
+  "preconditions": {
+    "os": "windows",
+    "resolution": "1920x1080",
+    "scaling": 100,
+    "game_mode": "windowed",
+    "chat_minimized": true,
+    "verified": false
+  },
+  "auth": {
+    "id": "",
+    "password": ""
+  },
   "hotkeys": {
-    "start": "f9",
-    "stop": "f10",
-    "loot": "z"
+    "start": "f1",
+    "stop": "f2",
+    "hp_potion": "del",
+    "mp_potion": "end",
+    "attack": "ctrl",
+    "jump": "d",
+    "loot": "z",
+    "key_down_time": 4.5,
+    "attack_delay": 0.5
   },
   "combat": {
-    "skill_sequence": ["1", "2", "3"],
+    "skill_sequence": ["ctrl"],
     "skill_delay_ms": 200
   },
   "potion": {
@@ -17,8 +35,9 @@
   "vision": {
     "mob_templates_path": "assets/mob_templates",
     "ui_elements_path": "assets/ui_elements",
-    "tesseract_path": "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
-    "assets_path": "assets"
+    "assets_path": "assets",
+    "nickname_template": "settings/nickname.png",
+    "nickname_threshold": 0.8
   },
   "movement": {
     "speed_factor": 117
@@ -47,8 +66,62 @@
     "greenbu.png",
     "greenbu2.png"
   ],
+  "monster_settings": {
+    "nickname_recognition_rate": 0.8,
+    "monster_recognition_rate": 0.8,
+    "x_range": 200,
+    "y_range": 60,
+    "handle_opposite": true
+  },
+  "routes": [
+    {
+      "name": "Sample Route",
+      "left_boundary": 400,
+      "right_boundary": 1520,
+      "minimap_region": [10, 10, 200, 150],
+      "actions": [
+        {
+          "type": "attack",
+          "x_position": 960,
+          "direction": "right",
+          "after_direction": "right",
+          "after_key1": "",
+          "after_key2": "",
+          "probability": 100,
+          "min_id": 0,
+          "extra_time": 0
+        }
+      ]
+    }
+  ],
+  "buffs": [
+    {
+      "name": "Teleport",
+      "key": "f",
+      "down_time": 0.1,
+      "interval": 300,
+      "random_range": 10,
+      "active": true
+    }
+  ],
+  "misc": {
+    "hp_potion_percent": 50,
+    "mp_potion_percent": 30,
+    "handle_opposite": true,
+    "clear_remain": true,
+    "lie_detector": true,
+    "user_detect": true,
+    "user_detect_time": 10,
+    "stationary": false,
+    "stationary_direction": "right",
+    "stationary_time": 30
+  },
   "ui": {
     "language": "en",
     "theme": "dark"
+  },
+  "debug": {
+    "enable_debug": false,
+    "simulation_mode": false
   }
 }

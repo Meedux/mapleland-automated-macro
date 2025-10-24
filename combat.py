@@ -8,8 +8,8 @@ class CombatManager:
         self.settings = settings
         self.vision = vision
 
-    def find_targets(self, monster_paths: list, character_y: int):
-        return self.vision.find_closest_monster(monster_paths, character_y)
+    def find_targets(self, monster_paths: list, character_y: int, char_x: int, char_left: bool):
+        return self.vision.find_closest_monster(monster_paths, character_y, char_x, char_left)
 
     def attack(self, monster_pos: Tuple[int, int], character_x: int, character_direction_left: bool):
         x_diff = monster_pos[0] - character_x

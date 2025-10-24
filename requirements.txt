@@ -3,5 +3,5 @@ opencv-python
 pynput
 Pillow
 numpy
-pytesseract
+easyocr
 customtkinter

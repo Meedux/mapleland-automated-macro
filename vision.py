@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import pyautogui
-import pytesseract
+import easyocr
 import re
 from typing import Any, Dict, Tuple, Optional, List
 from pathlib import Path
@@ -10,7 +10,8 @@ from pathlib import Path
 class Vision:
     def __init__(self, settings: Dict[str, Any]):
         self.settings = settings
-        pytesseract.pytesseract.tesseract_cmd = settings.get('tesseract_path', r'C:\Program Files\Tesseract-OCR\tesseract.exe')
+        # Initialize EasyOCR reader for English (can add more languages if needed)
+        self.reader = easyocr.Reader(['en'], gpu=False)  # Set gpu=True if GPU available
         self.assets_path = Path(settings.get('assets_path', 'assets'))
 
     def capture_screen(self, region=None):
@@ -52,19 +53,27 @@ class Vision:
         else:
             return None, None, None
 
-    def find_closest_monster(self, monster_paths: List[str], character_y: int):
+    def find_closest_monster(self, monster_paths: List[str], character_y: int, char_x: int = 960, char_left: bool = False):
         screenshot = self.capture_screen()
         closest = None
         min_dist = float('inf')
+        x_range = self.settings.get('monster_settings', {}).get('x_range', 200)
+        y_range = self.settings.get('monster_settings', {}).get('y_range', 60)
+        handle_opposite = self.settings.get('monster_settings', {}).get('handle_opposite', True)
+        threshold = self.settings.get('monster_settings', {}).get('monster_recognition_rate', 0.8)
+        
         for path in monster_paths:
             template = cv2.imread(str(path), cv2.IMREAD_COLOR)
             if template is None:
                 continue
             result = cv2.matchTemplate(screenshot, template, cv2.TM_CCOEFF_NORMED)
-            loc = np.where(result >= 0.8)
+            loc = np.where(result >= threshold)
             for pt in zip(*loc[::-1]):
-                if abs(character_y - pt[1]) < 60:
-                    dist = abs(pt[0] - 960)  # assuming center x
+                if abs(character_y - pt[1]) < y_range and abs(char_x - pt[0]) < x_range:
+                    # Check direction
+                    if handle_opposite and ((char_left and pt[0] > char_x) or (not char_left and pt[0] < char_x)):
+                        continue  # Skip opposite direction monsters if not handling
+                    dist = abs(pt[0] - char_x)
                     if dist < min_dist:
                         min_dist = dist
                         closest = pt
@@ -82,8 +91,16 @@ class Vision:
         mp_region = (611, 979, 150, 20)
         hp_img = self.capture_screen(hp_region)
         mp_img = self.capture_screen(mp_region)
-        hp_text = pytesseract.image_to_string(hp_img, config='--psm 6')
-        mp_text = pytesseract.image_to_string(mp_img, config='--psm 6')
+        
+        # Convert to RGB for easyocr
+        hp_img_rgb = cv2.cvtColor(hp_img, cv2.COLOR_BGR2RGB)
+        mp_img_rgb = cv2.cvtColor(mp_img, cv2.COLOR_BGR2RGB)
+        
+        hp_results = self.reader.readtext(hp_img_rgb)
+        mp_results = self.reader.readtext(mp_img_rgb)
+        
+        hp_text = ' '.join([result[1] for result in hp_results])
+        mp_text = ' '.join([result[1] for result in mp_results])
 
         def parse_ratio(text):
             match = re.search(r'[|\[\({\s]?\s*(\d+)\s*[/\s]?\s*(\d+)[|\]\)}\s]?', text)
@@ -101,3 +118,16 @@ class Vision:
         screenshot = self.capture_screen((12, 67, 270, 307))  # 282-12=270, 374-67=307
         loc = self.find_template(str(user_path), screenshot, 0.7)
         return len(loc) > 0
+
+    def capture_nickname(self):
+        # Assuming nickname is in a fixed region, e.g., above character
+        nickname_region = (800, 800, 320, 50)  # Example region, adjust as needed
+        img = self.capture_screen(nickname_region)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # For easyocr, convert to RGB
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        results = self.reader.readtext(img_rgb)
+        text = ' '.join([result[1] for result in results])
+        # Clean up text
+        nickname = re.sub(r'[^\w\s]', '', text).strip()
+        return nickname if nickname else None

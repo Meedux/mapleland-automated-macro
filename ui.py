@@ -88,11 +88,16 @@ class MapleBotUI:
 
     def start_bot(self):
         if not self.running:
-            self.running = True
-            self.status_label.configure(text=self.lang['status_running'])
-            self.start_button.configure(state="disabled")
-            self.stop_button.configure(state="normal")
-            threading.Thread(target=self.start_callback, daemon=True).start()
+            success = self.start_callback()
+            if success:
+                self.running = True
+                self.status_label.configure(text=self.lang['status_running'])
+                self.start_button.configure(state="disabled")
+                self.stop_button.configure(state="normal")
+            else:
+                # Show error message
+                import tkinter.messagebox as messagebox
+                messagebox.showerror("Precondition Error", "Precondition verification failed. Check console for details.")
 
     def stop_bot(self):
         if self.running:
@@ -116,14 +121,42 @@ class MapleBotUI:
             back_button = ctk.CTkButton(self.settings_frame, text=self.lang['back'], command=self.show_main)
             back_button.pack(pady=10)
 
-            # Hotkeys
-            ctk.CTkLabel(self.settings_scrollable, text="Hotkeys", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(10,5))
-            for key in ['start', 'stop', 'loot']:
+            # Preconditions
+            ctk.CTkLabel(self.settings_scrollable, text="Preconditions", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(10,5))
+            for key in ['os', 'resolution', 'scaling', 'game_mode', 'chat_minimized']:
+                frame = ctk.CTkFrame(self.settings_scrollable)
+                frame.pack(fill="x", pady=2)
+                ctk.CTkLabel(frame, text=f"{key.replace('_', ' ').capitalize()}:", width=150).pack(side="left", padx=5)
+                if key == 'chat_minimized':
+                    combo = ctk.CTkComboBox(frame, values=["True", "False"])
+                    combo.set(str(self.settings['preconditions'].get(key, True)))
+                    combo.pack(side="left", padx=5)
+                    self.entries[f'preconditions_{key}'] = combo
+                else:
+                    entry = ctk.CTkEntry(frame)
+                    entry.insert(0, str(self.settings['preconditions'].get(key, '')))
+                    entry.pack(side="left", fill="x", expand=True, padx=5)
+                    self.entries[f'preconditions_{key}'] = entry
+
+            # Auth
+            ctk.CTkLabel(self.settings_scrollable, text="Auth", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(20,5))
+            for key in ['id', 'password']:
                 frame = ctk.CTkFrame(self.settings_scrollable)
                 frame.pack(fill="x", pady=2)
                 ctk.CTkLabel(frame, text=f"{key.capitalize()}:", width=100).pack(side="left", padx=5)
+                entry = ctk.CTkEntry(frame, show="*" if key == 'password' else "")
+                entry.insert(0, self.settings['auth'].get(key, ''))
+                entry.pack(side="left", fill="x", expand=True, padx=5)
+                self.entries[f'auth_{key}'] = entry
+
+            # Hotkeys
+            ctk.CTkLabel(self.settings_scrollable, text="Hotkeys", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(20,5))
+            for key in ['start', 'stop', 'hp_potion', 'mp_potion', 'attack', 'jump', 'loot', 'key_down_time', 'attack_delay']:
+                frame = ctk.CTkFrame(self.settings_scrollable)
+                frame.pack(fill="x", pady=2)
+                ctk.CTkLabel(frame, text=f"{key.replace('_', ' ').capitalize()}:", width=150).pack(side="left", padx=5)
                 entry = ctk.CTkEntry(frame)
-                entry.insert(0, self.settings['hotkeys'].get(key, ''))
+                entry.insert(0, str(self.settings['hotkeys'].get(key, '')))
                 entry.pack(side="left", fill="x", expand=True, padx=5)
                 self.entries[f'hotkeys_{key}'] = entry
 
@@ -150,16 +183,78 @@ class MapleBotUI:
 
             # Vision
             ctk.CTkLabel(self.settings_scrollable, text="Vision", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(20,5))
+            for key in ['nickname_threshold']:
+                frame = ctk.CTkFrame(self.settings_scrollable)
+                frame.pack(fill="x", pady=2)
+                ctk.CTkLabel(frame, text=f"{key.replace('_', ' ').capitalize()}:", width=150).pack(side="left", padx=5)
+                entry = ctk.CTkEntry(frame)
+                entry.insert(0, str(self.settings['vision'].get(key, '')))
+                entry.pack(side="left", fill="x", expand=True, padx=5)
+                self.entries[f'vision_{key}'] = entry
+
+            # Movement
+            ctk.CTkLabel(self.settings_scrollable, text="Movement", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(20,5))
             frame = ctk.CTkFrame(self.settings_scrollable)
             frame.pack(fill="x", pady=2)
-            ctk.CTkLabel(frame, text="Tesseract Path:", width=150).pack(side="left", padx=5)
+            ctk.CTkLabel(frame, text="Speed Factor:", width=150).pack(side="left", padx=5)
             entry = ctk.CTkEntry(frame)
-            entry.insert(0, self.settings['vision'].get('tesseract_path', ''))
+            entry.insert(0, str(self.settings['movement'].get('speed_factor', 117)))
             entry.pack(side="left", fill="x", expand=True, padx=5)
-            self.entries['vision_tesseract_path'] = entry
+            self.entries['movement_speed_factor'] = entry
+
+            # Monster Settings
+            ctk.CTkLabel(self.settings_scrollable, text="Monster Settings", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(20,5))
+            for key in ['nickname_recognition_rate', 'monster_recognition_rate', 'x_range', 'y_range']:
+                frame = ctk.CTkFrame(self.settings_scrollable)
+                frame.pack(fill="x", pady=2)
+                ctk.CTkLabel(frame, text=f"{key.replace('_', ' ').capitalize()}:", width=200).pack(side="left", padx=5)
+                entry = ctk.CTkEntry(frame)
+                entry.insert(0, str(self.settings['monster_settings'].get(key, '')))
+                entry.pack(side="left", fill="x", expand=True, padx=5)
+                self.entries[f'monster_settings_{key}'] = entry
+            frame = ctk.CTkFrame(self.settings_scrollable)
+            frame.pack(fill="x", pady=2)
+            ctk.CTkLabel(frame, text="Handle Opposite:", width=150).pack(side="left", padx=5)
+            handle_opposite_combo = ctk.CTkComboBox(frame, values=["True", "False"])
+            handle_opposite_combo.set(str(self.settings['monster_settings'].get('handle_opposite', True)))
+            handle_opposite_combo.pack(side="left", padx=5)
+            self.entries['monster_settings_handle_opposite'] = handle_opposite_combo
+
+            # Misc
+            ctk.CTkLabel(self.settings_scrollable, text="Misc", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(20,5))
+            for key in ['hp_potion_percent', 'mp_potion_percent', 'user_detect_time', 'stationary_time']:
+                frame = ctk.CTkFrame(self.settings_scrollable)
+                frame.pack(fill="x", pady=2)
+                ctk.CTkLabel(frame, text=f"{key.replace('_', ' ').capitalize()}:", width=150).pack(side="left", padx=5)
+                entry = ctk.CTkEntry(frame)
+                entry.insert(0, str(self.settings['misc'].get(key, '')))
+                entry.pack(side="left", fill="x", expand=True, padx=5)
+                self.entries[f'misc_{key}'] = entry
+            for key in ['handle_opposite', 'clear_remain', 'lie_detector', 'user_detect', 'stationary']:
+                frame = ctk.CTkFrame(self.settings_scrollable)
+                frame.pack(fill="x", pady=2)
+                ctk.CTkLabel(frame, text=f"{key.replace('_', ' ').capitalize()}:", width=150).pack(side="left", padx=5)
+                combo = ctk.CTkComboBox(frame, values=["True", "False"])
+                combo.set(str(self.settings['misc'].get(key, False)))
+                combo.pack(side="left", padx=5)
+                self.entries[f'misc_{key}'] = combo
+            frame = ctk.CTkFrame(self.settings_scrollable)
+            frame.pack(fill="x", pady=2)
+            ctk.CTkLabel(frame, text="Stationary Direction:", width=150).pack(side="left", padx=5)
+            stationary_direction_combo = ctk.CTkComboBox(frame, values=["left", "right"])
+            stationary_direction_combo.set(self.settings['misc'].get('stationary_direction', 'right'))
+            stationary_direction_combo.pack(side="left", padx=5)
+            self.entries['misc_stationary_direction'] = stationary_direction_combo
 
             # UI
             ctk.CTkLabel(self.settings_scrollable, text="UI", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(20,5))
+            frame = ctk.CTkFrame(self.settings_scrollable)
+            frame.pack(fill="x", pady=2)
+            ctk.CTkLabel(frame, text="Language:", width=100).pack(side="left", padx=5)
+            lang_combo = ctk.CTkComboBox(frame, values=["en", "ko"])
+            lang_combo.set(self.settings['ui'].get('language', 'en'))
+            lang_combo.pack(side="left", padx=5)
+            self.entries['ui_language'] = lang_combo
             frame = ctk.CTkFrame(self.settings_scrollable)
             frame.pack(fill="x", pady=2)
             ctk.CTkLabel(frame, text="Theme:", width=100).pack(side="left", padx=5)
@@ -168,6 +263,29 @@ class MapleBotUI:
             theme_combo.pack(side="left", padx=5)
             self.entries['ui_theme'] = theme_combo
 
+            # Debug
+            ctk.CTkLabel(self.settings_scrollable, text="Debug", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(20,5))
+            for key in ['enable_debug', 'simulation_mode']:
+                frame = ctk.CTkFrame(self.settings_scrollable)
+                frame.pack(fill="x", pady=2)
+                ctk.CTkLabel(frame, text=f"{key.replace('_', ' ').capitalize()}:", width=150).pack(side="left", padx=5)
+                combo = ctk.CTkComboBox(frame, values=["True", "False"])
+                combo.set(str(self.settings['debug'].get(key, False)))
+                combo.pack(side="left", padx=5)
+                self.entries[f'debug_{key}'] = combo
+
+            # Routes
+            ctk.CTkLabel(self.settings_scrollable, text="Routes (JSON)", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(20,5))
+            self.routes_text = ctk.CTkTextbox(self.settings_scrollable, height=100)
+            self.routes_text.insert("0.0", json.dumps(self.settings.get('routes', []), indent=2))
+            self.routes_text.pack(fill="x", pady=5)
+
+            # Buffs
+            ctk.CTkLabel(self.settings_scrollable, text="Buffs (JSON)", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(20,5))
+            self.buffs_text = ctk.CTkTextbox(self.settings_scrollable, height=100)
+            self.buffs_text.insert("0.0", json.dumps(self.settings.get('buffs', []), indent=2))
+            self.buffs_text.pack(fill="x", pady=5)
+
             # Save button
             save_button = ctk.CTkButton(self.settings_scrollable, text=self.lang['save'], command=self.save_settings)
             save_button.pack(pady=20)
@@ -175,21 +293,68 @@ class MapleBotUI:
     def save_settings(self):
         # Update settings from entries
         for key, entry in self.entries.items():
-            section, subkey = key.split('_', 1)
+            parts = key.split('_', 1)
+            section = parts[0]
+            subkey = parts[1] if len(parts) > 1 else ''
             if isinstance(entry, ctk.CTkEntry):
                 value = entry.get()
             elif isinstance(entry, ctk.CTkComboBox):
                 value = entry.get()
-            if section == 'hotkeys':
-                self.settings['hotkeys'][subkey] = value
+                if value in ["True", "False"]:
+                    value = value == "True"
+            else:
+                continue
+
+            if section == 'preconditions':
+                if subkey == 'scaling':
+                    self.settings['preconditions'][subkey] = int(value)
+                elif subkey == 'chat_minimized':
+                    self.settings['preconditions'][subkey] = value == "True"
+                else:
+                    self.settings['preconditions'][subkey] = value
+            elif section == 'auth':
+                self.settings['auth'][subkey] = value
+            elif section == 'hotkeys':
+                if subkey in ['key_down_time', 'attack_delay']:
+                    self.settings['hotkeys'][subkey] = float(value)
+                else:
+                    self.settings['hotkeys'][subkey] = value
             elif section == 'combat':
                 self.settings['combat'][subkey] = int(value) if subkey == 'skill_delay_ms' else value
             elif section == 'potion':
-                self.settings['potion'][subkey] = int(value) if subkey in ['hp_threshold', 'mp_threshold'] else value
+                if subkey in ['hp_threshold', 'mp_threshold']:
+                    self.settings['potion'][subkey] = int(value)
+                else:
+                    self.settings['potion'][subkey] = value
             elif section == 'vision':
-                self.settings['vision'][subkey] = value
+                if subkey == 'nickname_threshold':
+                    self.settings['vision'][subkey] = float(value)
+            elif section == 'movement':
+                self.settings['movement'][subkey] = int(value)
+            elif section == 'monster_settings':
+                if subkey in ['nickname_recognition_rate', 'monster_recognition_rate', 'x_range', 'y_range']:
+                    self.settings['monster_settings'][subkey] = float(value) if 'rate' in subkey else int(value)
+                else:
+                    self.settings['monster_settings'][subkey] = value
+            elif section == 'misc':
+                if subkey in ['hp_potion_percent', 'mp_potion_percent', 'user_detect_time', 'stationary_time']:
+                    self.settings['misc'][subkey] = int(value)
+                else:
+                    self.settings['misc'][subkey] = value
             elif section == 'ui':
                 self.settings['ui'][subkey] = value
+            elif section == 'debug':
+                self.settings['debug'][subkey] = value
+
+        # Handle text areas
+        try:
+            self.settings['routes'] = json.loads(self.routes_text.get("0.0", "end-1c"))
+        except json.JSONDecodeError:
+            print("Invalid routes JSON")
+        try:
+            self.settings['buffs'] = json.loads(self.buffs_text.get("0.0", "end-1c"))
+        except json.JSONDecodeError:
+            print("Invalid buffs JSON")
 
         # Save to file
         with self.settings_path.open('w', encoding='utf-8') as f:
