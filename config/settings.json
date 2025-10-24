@@ -39,7 +39,11 @@
         "ui_elements_path": "assets/ui_elements",
         "assets_path": "assets",
         "nickname_template": "settings/nickname.png",
-        "nickname_threshold": 0.8
+        "nickname_threshold": 0.8,
+        "lie_template": "assets/ui_elements/polygraph.png",
+        "lie_threshold": 0.7,
+        "enemy_template": "assets/ui_elements/enemy_alert.png",
+        "enemy_threshold": 0.7
     },
     "movement": {
         "speed_factor": 117
@@ -116,7 +120,8 @@
         "mp_potion_percent": 30,
         "handle_opposite": true,
         "clear_remain": true,
-        "lie_detector": true,
+    "lie_detector": true,
+    "enemy_detector": true,
         "user_detect": true,
         "user_detect_time": 10,
         "stationary": false,

@@ -423,6 +423,57 @@ class MapleBotUI:
                 self.text_widget.insert(tk.END, msg + '\n')
                 self.text_widget.see(tk.END)
 
+        def show_alarm_popup(self, message: str):
+            """Create a modal popup to notify the user of a lie-detector/polygraph occurrence.
+            The popup will remain until the user clicks Dismiss.
+            """
+            try:
+                # If already displayed, bring to top
+                if hasattr(self, '_alarm_window') and self._alarm_window is not None:
+                    try:
+                        self._alarm_window.lift()
+                    except Exception:
+                        pass
+                    return
+
+                self._alarm_window = tk.Toplevel(self.root)
+                self._alarm_window.title("Occurrence Issue Alarm")
+                self._alarm_window.attributes('-topmost', True)
+                self._alarm_window.configure(bg='#2b2b2b')
+                self._alarm_window.geometry('420x160+200+200')
+
+                label = tk.Label(self._alarm_window, text=message, font=("Arial", 14, 'bold'), bg='#2b2b2b', fg='#ff6666', wraplength=380)
+                label.pack(pady=(20,10))
+
+                dismiss_btn = tk.Button(self._alarm_window, text='Dismiss', command=self._on_alarm_dismiss, bg='#444444', fg='#ffffff')
+                dismiss_btn.pack(pady=(0,20))
+
+                # Add an emphasized icon/text if desired
+                self._alarm_window.protocol("WM_DELETE_WINDOW", self._on_alarm_dismiss)
+            except Exception as e:
+                logging.error(f"Failed to create alarm popup: {e}")
+
+        def _on_alarm_dismiss(self):
+            # Tell bot to stop alarm via callback if provided
+            try:
+                if hasattr(self, 'alarm_dismiss_callback') and callable(self.alarm_dismiss_callback):
+                    self.alarm_dismiss_callback()
+            except Exception as e:
+                logging.error(f"Error calling alarm dismiss callback: {e}")
+            finally:
+                self._destroy_alarm_popup()
+
+        def _destroy_alarm_popup(self):
+            try:
+                if hasattr(self, '_alarm_window') and self._alarm_window is not None:
+                    try:
+                        self._alarm_window.destroy()
+                    except Exception:
+                        pass
+                    self._alarm_window = None
+            except Exception as e:
+                logging.error(f"Failed to destroy alarm popup: {e}")
+
         # Add handler for main logs
         handler = MainTextHandler(self.logs_text_main)
         formatter = logging.Formatter('%(asctime)s - %(message)s')

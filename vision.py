@@ -130,6 +130,60 @@ class Vision:
         loc = self.find_template(str(user_path), screenshot, 0.7)
         return len(loc) > 0
 
+    def detect_lie_detector(self):
+        """Detect the polygraph / lie-detector overlay that appears when a lie detector is used.
+        Uses a template image path from settings: settings['vision'].get('lie_template').
+        Returns True if detected.
+        """
+        if not self.settings.get('misc', {}).get('lie_detector', False):
+            return False
+
+        lie_template_setting = self.settings.get('vision', {}).get('lie_template', '')
+        if not lie_template_setting:
+            # default fallback
+            lie_path = self.assets_path / 'ui_elements' / 'polygraph.png'
+        else:
+            lie_path = Path(lie_template_setting)
+
+        try:
+            # Search full screen for the polygraph overlay — threshold configurable
+            threshold = float(self.settings.get('vision', {}).get('lie_threshold', 0.7))
+        except Exception:
+            threshold = 0.7
+
+        screenshot = self.capture_screen()
+        locs = self.find_template(str(lie_path), screenshot, threshold)
+        found = len(locs) > 0
+        if found:
+            logging.warning(f"Lie detector overlay detected at {locs[:3]}")
+        return found
+
+    def detect_enemy_detector(self):
+        """Detect the anti-auto-play enemy overlay/image that should trigger an emergency stop.
+        Uses a template image path from settings: settings['vision'].get('enemy_template').
+        Returns True if detected.
+        """
+        if not self.settings.get('misc', {}).get('enemy_detector', False):
+            return False
+
+        enemy_template_setting = self.settings.get('vision', {}).get('enemy_template', '')
+        if not enemy_template_setting:
+            enemy_path = self.assets_path / 'ui_elements' / 'enemy_alert.png'
+        else:
+            enemy_path = Path(enemy_template_setting)
+
+        try:
+            threshold = float(self.settings.get('vision', {}).get('enemy_threshold', 0.7))
+        except Exception:
+            threshold = 0.7
+
+        screenshot = self.capture_screen()
+        locs = self.find_template(str(enemy_path), screenshot, threshold)
+        found = len(locs) > 0
+        if found:
+            logging.error(f"Enemy anti-auto-play indicator detected at {locs[:3]}")
+        return found
+
     def capture_nickname(self):
         # Assuming nickname is in a fixed region, e.g., above character
         nickname_region = (800, 800, 320, 50)  # Example region, adjust as needed

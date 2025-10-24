@@ -86,6 +86,25 @@ class MapleBot:
         logging.info("Main logic thread started")
         while self.running:
             try:
+                # Check for anti-auto-play enemy indicator (highest priority)
+                if self.settings.get('misc', {}).get('enemy_detector', False):
+                    if self.vision.detect_enemy_detector():
+                        logging.error("Anti-auto-play enemy detected — emergency stop")
+                        # Stop the bot immediately; other threads check self.running
+                        self.stop()
+                        # Trigger an emergency alarm/popup
+                        self.trigger_enemy_alarm()
+                        # break out of loop since running is now False
+                        break
+
+                # Check for lie detector overlay next
+                if self.settings.get('misc', {}).get('lie_detector', False):
+                    if self.vision.detect_lie_detector():
+                        logging.warning("Lie detector detected — triggering alarm")
+                        self.trigger_lie_alarm()
+                        # give a short pause to avoid spamming
+                        time.sleep(1)
+                        continue
                 char_x, char_y, char_left = self.vision.find_character_coordinates()
                 if char_x is None:
                     logging.warning("Character not found, attempting to locate")
@@ -161,6 +180,77 @@ class MapleBot:
         self.debug_overlay.settings = new_settings
         logging.info("Settings updated in real-time")
 
+    def trigger_lie_alarm(self):
+        """Trigger alarm: play sound and show popup via UI if available. Non-blocking."""
+        if getattr(self, 'alarm_active', False):
+            logging.debug("Alarm already active")
+            return
+        self.alarm_active = True
+        logging.warning("Triggering lie detector alarm")
+
+        # Start beep thread
+        def beep_loop():
+            try:
+                import winsound
+                while self.alarm_active:
+                    winsound.Beep(1000, 400)
+                    time.sleep(0.2)
+            except Exception:
+                # Fallback simple print if winsound unavailable
+                while self.alarm_active:
+                    logging.warning("ALARM (no sound available on platform)")
+                    time.sleep(1)
+
+        threading.Thread(target=beep_loop, daemon=True).start()
+
+        # Show popup via UI if present
+        if hasattr(self, 'ui') and self.ui is not None:
+            try:
+                # Use tkinter-safe scheduling
+                self.ui.root.after(0, lambda: self.ui.show_alarm_popup("Lie detector detected! Click dismiss to continue."))
+            except Exception as e:
+                logging.error(f"Failed to show alarm popup: {e}")
+
+    def trigger_enemy_alarm(self):
+        """Trigger the emergency alarm for anti-auto-play enemy detection."""
+        if getattr(self, 'enemy_alarm_active', False):
+            logging.debug("Enemy alarm already active")
+            return
+        self.enemy_alarm_active = True
+        logging.critical("Triggering ENEMY emergency alarm — stop all automation")
+
+        # Start beep thread (higher urgency tone)
+        def beep_loop_enemy():
+            try:
+                import winsound
+                while self.enemy_alarm_active:
+                    winsound.Beep(1500, 500)
+                    time.sleep(0.1)
+            except Exception:
+                while self.enemy_alarm_active:
+                    logging.critical("ENEMY ALARM (no sound available on platform)")
+                    time.sleep(1)
+
+        threading.Thread(target=beep_loop_enemy, daemon=True).start()
+
+        if hasattr(self, 'ui') and self.ui is not None:
+            try:
+                self.ui.root.after(0, lambda: self.ui.show_alarm_popup("Enemy detected near your character — emergency stop applied. Move to a neutral area and dismiss this alert."))
+            except Exception as e:
+                logging.error(f"Failed to show enemy alarm popup: {e}")
+
+    def dismiss_alarm(self):
+        logging.info("Dismissing alarms (lie & enemy)")
+        # Clear any active alarms
+        self.alarm_active = False
+        self.enemy_alarm_active = False
+        # Ensure UI popup is dismissed
+        if hasattr(self, 'ui') and self.ui is not None:
+            try:
+                self.ui.root.after(0, lambda: self.ui._destroy_alarm_popup())
+            except Exception as e:
+                logging.error(f"Failed to dismiss alarm popup in UI: {e}")
+
     def verify_preconditions(self):
         issues = []
         expected_os = self.settings['preconditions'].get('os', 'windows').lower()
@@ -199,6 +289,10 @@ def main():
 
     bot = MapleBot(settings)
     ui = MapleBotUI(settings, bot.start, bot.stop, settings_path, bot.update_settings)
+    # give bot a reference to UI so it can pop up alarms
+    bot.ui = ui
+    # allow UI to notify bot to dismiss alarms
+    ui.alarm_dismiss_callback = bot.dismiss_alarm
     ui.run()
 
 
