@@ -121,7 +121,7 @@ logs/
 screenshots/
 *.log
 
-# Local settings (do not commit)
+
 config/settings.json
 
 # Build artifacts
