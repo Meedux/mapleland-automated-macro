@@ -2,16 +2,20 @@ import customtkinter as ctk
 import threading
 import time
 import json
+import logging
 from pathlib import Path
 from typing import Dict, Any
+import tkinter as tk
+from tkinter import scrolledtext
 
 
 class MapleBotUI:
-    def __init__(self, settings: Dict[str, Any], start_callback, stop_callback, settings_path: Path):
+    def __init__(self, settings: Dict[str, Any], start_callback, stop_callback, settings_path: Path, update_settings_callback=None):
         self.settings = settings
         self.start_callback = start_callback
         self.stop_callback = stop_callback
         self.settings_path = settings_path
+        self.update_settings_callback = update_settings_callback
         self.running = False
         self.lang = self.load_language()
 
@@ -38,11 +42,14 @@ class MapleBotUI:
         self.settings_button = ctk.CTkButton(self.main_frame, text=self.lang['settings'], command=self.show_settings)
         self.settings_button.pack(pady=10)
 
+        self.logs_button = ctk.CTkButton(self.main_frame, text="Logs", command=self.show_logs)
+        self.logs_button.pack(pady=10)
+
         self.lang_button = ctk.CTkButton(self.main_frame, text=self.lang['switch_lang'], command=self.switch_language)
         self.lang_button.pack(pady=10)
 
         self.settings_frame = ctk.CTkFrame(self.root)
-        # Settings frame will be populated in show_settings
+        self.logs_frame = ctk.CTkFrame(self.root)
 
     def load_language(self):
         lang_code = self.settings.get('ui', {}).get('language', 'en')
@@ -363,11 +370,66 @@ class MapleBotUI:
         # Update theme if changed
         ctk.set_appearance_mode(self.settings['ui']['theme'])
 
+        # Update language if changed
+        old_lang = self.lang
+        self.lang = self.load_language()
+        if self.lang != old_lang:
+            self.update_ui_texts()
+
+        # Notify bot of settings update
+        if self.update_settings_callback:
+            self.update_settings_callback(self.settings)
+
         self.show_main()
 
     def show_main(self):
         self.settings_frame.pack_forget()
+        self.logs_frame.pack_forget()
         self.main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+    def show_logs(self):
+        self.main_frame.pack_forget()
+        self.settings_frame.pack_forget()
+        self.logs_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        if not hasattr(self, 'logs_text'):
+            ctk.CTkLabel(self.logs_frame, text="Application Logs").pack(pady=10)
+            self.logs_text = scrolledtext.ScrolledText(self.logs_frame, wrap=tk.WORD, height=20)
+            self.logs_text.pack(fill="both", expand=True, padx=10, pady=10)
+            
+            # Set up logging to this widget
+            self.setup_logging()
+
+        back_button = ctk.CTkButton(self.logs_frame, text=self.lang['back'], command=self.show_main)
+        back_button.pack(pady=10)
+
+    def load_logs(self):
+        # For now, just simulate loading logs
+        self.logs_text.configure(state="normal")
+        self.logs_text.delete("0.0", "end")
+        self.logs_text.insert("0.0", "Log file content goes here...\n")
+        self.logs_text.insert("end", "Another log entry...\n")
+        self.logs_text.configure(state="disabled")
+
+    def setup_logging(self):
+        class TextHandler(logging.Handler):
+            def __init__(self, text_widget):
+                super().__init__()
+                self.text_widget = text_widget
+
+            def emit(self, record):
+                msg = self.format(record)
+                self.text_widget.after(0, lambda: self._append_text(msg))  # Thread-safe
+
+            def _append_text(self, msg):
+                self.text_widget.insert(tk.END, msg + '\n')
+                self.text_widget.see(tk.END)
+
+        # Add our custom handler
+        handler = TextHandler(self.logs_text)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        logging.root.addHandler(handler)
 
     def run(self):
         self.root.mainloop()

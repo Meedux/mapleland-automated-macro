@@ -31,7 +31,6 @@ class MapleBot:
         self.debug_overlay = DebugOverlay(settings)
         self.running = False
         self.simulation_mode = settings.get('debug', {}).get('simulation_mode', False)
-        logging.basicConfig(filename='bot.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.monster_paths = [Path(settings['vision']['assets_path']) / 'mob_templates' / img for img in settings['monsters']]
 
     def change_channel(self):
@@ -143,6 +142,17 @@ class MapleBot:
     def stop(self):
         self.running = False
 
+    def update_settings(self, new_settings):
+        self.settings = new_settings
+        # Update components that use settings
+        self.vision.settings = new_settings
+        self.combat.settings = new_settings
+        self.movement.settings = new_settings
+        self.potion.settings = new_settings
+        self.buff.settings = new_settings
+        self.debug_overlay.settings = new_settings
+        logging.info("Settings updated in real-time")
+
     def verify_preconditions(self):
         issues = []
         expected_os = self.settings['preconditions'].get('os', 'windows').lower()
@@ -169,8 +179,11 @@ def main():
     settings_path = base / 'config' / 'settings.json'
     settings = load_settings(settings_path)
 
+    # Set up logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
     bot = MapleBot(settings)
-    ui = MapleBotUI(settings, bot.start, bot.stop, settings_path)
+    ui = MapleBotUI(settings, bot.start, bot.stop, settings_path, bot.update_settings)
     ui.run()
 
 

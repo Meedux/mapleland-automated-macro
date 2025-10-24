@@ -14,9 +14,9 @@
 - **Route Configuration**: Define custom hunting routes with boundaries and actions.
 - **Advanced Monster Recognition**: Configurable ranges, directions, and recognition rates.
 - **Buff Scheduling**: Automatic buff casting with intervals and randomization.
-- **Hotkey/Buff/Misc Settings**: Comprehensive configuration options.
+- **Real-time Settings**: Settings changes apply immediately without restart
 - **Debug Overlay**: Real-time display of HP/MP, position, current action.
-- **Logging**: Detailed logging for debugging and monitoring.
+- **In-App Terminal**: View real-time logs and program output within the GUI
 - **Simulation Mode**: Run without actual input for testing.
 - **OCR**: Built-in EasyOCR for text recognition (no external Tesseract required)
 - **Monster detection and combat**
