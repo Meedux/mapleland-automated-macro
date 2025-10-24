@@ -13,4 +13,6 @@
 - Auto-potion (HP/MP)
 - User detection and channel change
 - Rope climbing
+- Modern UI with settings screen (adjust hotkeys, thresholds, paths, theme)
+- English/Korean language support
 - Modern UI with English/Korean support

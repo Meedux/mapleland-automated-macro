@@ -115,10 +115,11 @@ class MapleBot:
 
 def main():
     base = Path(__file__).parent
-    settings = load_settings(base / 'config' / 'settings.json')
+    settings_path = base / 'config' / 'settings.json'
+    settings = load_settings(settings_path)
 
     bot = MapleBot(settings)
-    ui = MapleBotUI(settings, bot.start, bot.stop)
+    ui = MapleBotUI(settings, bot.start, bot.stop, settings_path)
     ui.run()
 
 
