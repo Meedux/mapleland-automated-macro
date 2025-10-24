@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, Any
 import tkinter as tk
 from tkinter import scrolledtext
+import pyautogui
 
 
 class MapleBotUI:
@@ -42,14 +43,16 @@ class MapleBotUI:
         self.settings_button = ctk.CTkButton(self.main_frame, text=self.lang['settings'], command=self.show_settings)
         self.settings_button.pack(pady=10)
 
-        self.logs_button = ctk.CTkButton(self.main_frame, text="Logs", command=self.show_logs)
-        self.logs_button.pack(pady=10)
-
         self.lang_button = ctk.CTkButton(self.main_frame, text=self.lang['switch_lang'], command=self.switch_language)
         self.lang_button.pack(pady=10)
 
+        # Logs area in main frame
+        self.logs_label = ctk.CTkLabel(self.main_frame, text="Logs:")
+        self.logs_text_main = scrolledtext.ScrolledText(self.main_frame, wrap=tk.WORD, height=10, bg="#2b2b2b", fg="#ffffff", insertbackground="#ffffff")
+        self.logs_text_main.pack_forget()  # Hidden initially
+        self.logs_label.pack_forget()
+
         self.settings_frame = ctk.CTkFrame(self.root)
-        self.logs_frame = ctk.CTkFrame(self.root)
 
     def load_language(self):
         lang_code = self.settings.get('ui', {}).get('language', 'en')
@@ -101,6 +104,10 @@ class MapleBotUI:
                 self.status_label.configure(text=self.lang['status_running'])
                 self.start_button.configure(state="disabled")
                 self.stop_button.configure(state="normal")
+                # Show logs
+                self.logs_label.pack(pady=(20,5))
+                self.logs_text_main.pack(fill="both", expand=True, padx=10, pady=10)
+                self.setup_main_logging()
             else:
                 # Show error message
                 import tkinter.messagebox as messagebox
@@ -111,8 +118,11 @@ class MapleBotUI:
             self.running = False
             self.status_label.configure(text=self.lang['status_stopped'])
             self.start_button.configure(state="normal")
-            self.stop_button.configure(text=self.lang['stop'], state="disabled")
+            self.stop_button.configure(state="disabled")
             self.stop_callback()
+            # Hide logs
+            self.logs_text_main.pack_forget()
+            self.logs_label.pack_forget()
 
     def show_settings(self):
         self.main_frame.pack_forget()
@@ -134,7 +144,14 @@ class MapleBotUI:
                 frame = ctk.CTkFrame(self.settings_scrollable)
                 frame.pack(fill="x", pady=2)
                 ctk.CTkLabel(frame, text=f"{key.replace('_', ' ').capitalize()}:", width=150).pack(side="left", padx=5)
-                if key == 'chat_minimized':
+                if key == 'resolution':
+                    entry = ctk.CTkEntry(frame)
+                    entry.insert(0, str(self.settings['preconditions'].get(key, '')))
+                    entry.pack(side="left", fill="x", expand=True, padx=5)
+                    self.entries[f'preconditions_{key}'] = entry
+                    detect_button = ctk.CTkButton(frame, text="Detect", width=80, command=lambda: self.detect_resolution(entry))
+                    detect_button.pack(side="right", padx=5)
+                elif key == 'chat_minimized':
                     combo = ctk.CTkComboBox(frame, values=["True", "False"])
                     combo.set(str(self.settings['preconditions'].get(key, True)))
                     combo.pack(side="left", padx=5)
@@ -297,6 +314,12 @@ class MapleBotUI:
             save_button = ctk.CTkButton(self.settings_scrollable, text=self.lang['save'], command=self.save_settings)
             save_button.pack(pady=20)
 
+    def detect_resolution(self, entry):
+        width, height = pyautogui.size()
+        resolution_str = f"{width}x{height}"
+        entry.delete(0, "end")
+        entry.insert(0, resolution_str)
+
     def save_settings(self):
         # Update settings from entries
         for key, entry in self.entries.items():
@@ -384,50 +407,25 @@ class MapleBotUI:
 
     def show_main(self):
         self.settings_frame.pack_forget()
-        self.logs_frame.pack_forget()
         self.main_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
-    def show_logs(self):
-        self.main_frame.pack_forget()
-        self.settings_frame.pack_forget()
-        self.logs_frame.pack(fill="both", expand=True, padx=20, pady=20)
-
-        if not hasattr(self, 'logs_text'):
-            ctk.CTkLabel(self.logs_frame, text="Application Logs").pack(pady=10)
-            self.logs_text = scrolledtext.ScrolledText(self.logs_frame, wrap=tk.WORD, height=20)
-            self.logs_text.pack(fill="both", expand=True, padx=10, pady=10)
-            
-            # Set up logging to this widget
-            self.setup_logging()
-
-        back_button = ctk.CTkButton(self.logs_frame, text=self.lang['back'], command=self.show_main)
-        back_button.pack(pady=10)
-
-    def load_logs(self):
-        # For now, just simulate loading logs
-        self.logs_text.configure(state="normal")
-        self.logs_text.delete("0.0", "end")
-        self.logs_text.insert("0.0", "Log file content goes here...\n")
-        self.logs_text.insert("end", "Another log entry...\n")
-        self.logs_text.configure(state="disabled")
-
-    def setup_logging(self):
-        class TextHandler(logging.Handler):
+    def setup_main_logging(self):
+        class MainTextHandler(logging.Handler):
             def __init__(self, text_widget):
                 super().__init__()
                 self.text_widget = text_widget
 
             def emit(self, record):
                 msg = self.format(record)
-                self.text_widget.after(0, lambda: self._append_text(msg))  # Thread-safe
+                self.text_widget.after(0, lambda: self._append_text(msg))
 
             def _append_text(self, msg):
                 self.text_widget.insert(tk.END, msg + '\n')
                 self.text_widget.see(tk.END)
 
-        # Add our custom handler
-        handler = TextHandler(self.logs_text)
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        # Add handler for main logs
+        handler = MainTextHandler(self.logs_text_main)
+        formatter = logging.Formatter('%(asctime)s - %(message)s')
         handler.setFormatter(formatter)
         logging.root.addHandler(handler)
 

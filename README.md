@@ -16,7 +16,7 @@
 - **Buff Scheduling**: Automatic buff casting with intervals and randomization.
 - **Real-time Settings**: Settings changes apply immediately without restart
 - **Debug Overlay**: Real-time display of HP/MP, position, current action.
-- **In-App Terminal**: View real-time logs and program output within the GUI
+- **In-App Terminal**: View real-time logs and program output within the GUI (appears when bot starts)
 - **Simulation Mode**: Run without actual input for testing.
 - **OCR**: Built-in EasyOCR for text recognition (no external Tesseract required)
 - **Monster detection and combat**

@@ -34,6 +34,7 @@ class MapleBot:
         self.monster_paths = [Path(settings['vision']['assets_path']) / 'mob_templates' / img for img in settings['monsters']]
 
     def change_channel(self):
+        logging.info("Starting channel change procedure")
         time.sleep(3.0)
         pyautogui.click(1681, 98)
         time.sleep(1.5)
@@ -55,21 +56,22 @@ class MapleBot:
                 pyautogui.click(979, 709)
                 time.sleep(5)
                 pyautogui.click(579, 805)
-                time.sleep(2)
-                pyautogui.click(1396, 532)
-                time.sleep(20)
-                pyautogui.click(1400, 766)
+                logging.info("Channel change completed successfully")
                 break
             else:
+                logging.debug("Waiting for main channel screen...")
                 time.sleep(30)
 
     def check_for_channel_change(self):
+        logging.info("Channel change monitoring thread started")
         while self.running:
             if self.vision.detect_user():
+                logging.warning("User detected, changing channel")
                 self.change_channel()
             time.sleep(10)
 
     def potion_thread(self):
+        logging.info("Potion monitoring thread started")
         while self.running:
             self.potion.check_and_use()
             time.sleep(1)
@@ -81,10 +83,12 @@ class MapleBot:
             func(*args, **kwargs)
 
     def main_logic(self):
+        logging.info("Main logic thread started")
         while self.running:
             try:
                 char_x, char_y, char_left = self.vision.find_character_coordinates()
                 if char_x is None:
+                    logging.warning("Character not found, attempting to locate")
                     pyautogui.keyDown("left")
                     pyautogui.keyDown("alt")
                     time.sleep(3)
@@ -97,49 +101,53 @@ class MapleBot:
                     pyautogui.keyUp("alt")
                     continue
 
+                logging.debug(f"Character at ({char_x}, {char_y}), direction: {'left' if char_left else 'right'}")
                 monster = self.combat.find_targets(self.monster_paths, char_y, char_x, char_left)
                 if monster:
-                    self.debug_overlay.update(hp_current, hp_max, mp_current, mp_max, char_x, char_y, "Attacking monster")
+                    logging.info(f"Monster found at {monster}, attacking")
                     self.combat.attack(monster, char_x, char_left)
                 else:
+                    logging.debug("No monster found, checking for ropes")
                     ropes = self.vision.find_ropes(char_y)
                     if ropes:
                         closest_rope = min(ropes, key=lambda r: abs(char_x - r[0]))
+                        logging.info(f"Rope found at {closest_rope}, climbing")
                         self.movement.climb_rope(closest_rope[0], closest_rope[1], char_x, char_left)
                     else:
+                        logging.debug("No ropes found, patrolling")
                         self.movement.patrol()
-
-                self.buff.check_and_cast_buffs()
 
                 hp_current, hp_max, mp_current, mp_max = self.vision.read_hp_mp()
                 self.debug_overlay.update(hp_current, hp_max, mp_current, mp_max, char_x, char_y, "Searching for monsters")
 
-                logging.info(f"Character at ({char_x}, {char_y}), direction: {'left' if char_left else 'right'}")
-
                 if time.localtime().tm_min % 10 == 0 and time.localtime().tm_sec < 11:
+                    logging.info("Performing 10-minute maintenance (page up)")
                     pyautogui.press('pageup')
                 if time.localtime().tm_min % 30 == 0 and time.localtime().tm_sec < 11:
+                    logging.info("Performing 30-minute maintenance (home)")
                     pyautogui.press('home')
             except Exception as e:
-                print(f"Error in main logic: {e}")
+                logging.error(f"Error in main logic: {e}")
                 time.sleep(5)
 
     def start(self):
+        logging.info("Attempting to start MapleBot")
         issues = self.verify_preconditions()
         if issues:
-            print("Precondition verification failed:")
-            for issue in issues:
-                print(f"- {issue}")
+            logging.error("Bot start failed due to precondition failures")
             self.settings['preconditions']['verified'] = False
             return False
+        logging.info("Preconditions passed, starting bot threads")
         self.settings['preconditions']['verified'] = True
         self.running = True
         threading.Thread(target=self.check_for_channel_change, daemon=True).start()
         threading.Thread(target=self.potion_thread, daemon=True).start()
         threading.Thread(target=self.main_logic, daemon=True).start()
+        logging.info("MapleBot started successfully")
         return True
 
     def stop(self):
+        logging.info("Stopping MapleBot")
         self.running = False
 
     def update_settings(self, new_settings):
@@ -158,6 +166,7 @@ class MapleBot:
         expected_os = self.settings['preconditions'].get('os', 'windows').lower()
         if platform.system().lower() != expected_os:
             issues.append(f"OS must be {expected_os}, current: {platform.system()}")
+            logging.warning(f"Precondition failed: OS mismatch - expected {expected_os}, got {platform.system()}")
         
         expected_resolution = self.settings['preconditions'].get('resolution', '1920x1080')
         try:
@@ -165,12 +174,18 @@ class MapleBot:
             screen_size = pyautogui.size()
             if screen_size != (width, height):
                 issues.append(f"Resolution must be {expected_resolution}, current: {screen_size[0]}x{screen_size[1]}")
+                logging.warning(f"Precondition failed: Resolution mismatch - expected {expected_resolution}, got {screen_size[0]}x{screen_size[1]}")
+            else:
+                logging.info(f"Precondition passed: Resolution {expected_resolution}")
         except ValueError:
             issues.append(f"Invalid resolution format: {expected_resolution}")
+            logging.error(f"Precondition error: Invalid resolution format {expected_resolution}")
         
         # Scaling and other checks are harder to verify automatically
         # For now, assume they are set correctly if specified
         
+        if not issues:
+            logging.info("All preconditions verified successfully")
         return issues
 
 

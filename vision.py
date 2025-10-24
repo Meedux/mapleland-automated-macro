@@ -3,6 +3,7 @@ import numpy as np
 import pyautogui
 import easyocr
 import re
+import logging
 from typing import Any, Dict, Tuple, Optional, List
 from pathlib import Path
 
@@ -34,6 +35,7 @@ class Vision:
         left_template = cv2.imread(str(left_char_path), cv2.IMREAD_COLOR)
         right_template = cv2.imread(str(right_char_path), cv2.IMREAD_COLOR)
         if left_template is None or right_template is None:
+            logging.error("Character template images not found")
             raise FileNotFoundError("Character template images not found")
 
         screenshot = self.capture_screen()
@@ -46,11 +48,14 @@ class Vision:
 
         if left_max >= threshold and left_max > right_max:
             loc = cv2.minMaxLoc(left_result)[3]
+            logging.debug(f"Character found facing left at ({loc[0]}, {loc[1]})")
             return loc[0], loc[1], True
         elif right_max >= threshold and right_max > left_max:
             loc = cv2.minMaxLoc(right_result)[3]
+            logging.debug(f"Character found facing right at ({loc[0]}, {loc[1]})")
             return loc[0], loc[1], False
         else:
+            logging.debug("Character not found in current frame")
             return None, None, None
 
     def find_closest_monster(self, monster_paths: List[str], character_y: int, char_x: int = 960, char_left: bool = False):
@@ -65,6 +70,7 @@ class Vision:
         for path in monster_paths:
             template = cv2.imread(str(path), cv2.IMREAD_COLOR)
             if template is None:
+                logging.warning(f"Monster template not found: {path}")
                 continue
             result = cv2.matchTemplate(screenshot, template, cv2.TM_CCOEFF_NORMED)
             loc = np.where(result >= threshold)
@@ -77,6 +83,10 @@ class Vision:
                     if dist < min_dist:
                         min_dist = dist
                         closest = pt
+        if closest:
+            logging.debug(f"Closest monster found at {closest}")
+        else:
+            logging.debug("No monsters found within range")
         return closest
 
     def find_ropes(self, character_y: int):
@@ -111,6 +121,7 @@ class Vision:
 
         hp_current, hp_max = parse_ratio(hp_text)
         mp_current, mp_max = parse_ratio(mp_text)
+        logging.debug(f"HP: {hp_current}/{hp_max}, MP: {mp_current}/{mp_max}")
         return hp_current, hp_max, mp_current, mp_max
 
     def detect_user(self):
@@ -130,4 +141,5 @@ class Vision:
         text = ' '.join([result[1] for result in results])
         # Clean up text
         nickname = re.sub(r'[^\w\s]', '', text).strip()
+        logging.info(f"Nickname captured: '{nickname}'")
         return nickname if nickname else None
