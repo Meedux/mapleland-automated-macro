@@ -17,8 +17,24 @@ from debug_overlay import DebugOverlay
 
 
 def load_settings(path: Path):
-    with path.open('r', encoding='utf-8') as f:
-        return json.load(f)
+    # Ensure a settings file exists. If missing, create with sensible defaults.
+    from defaults import DEFAULT_SETTINGS
+    if not path.exists():
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open('w', encoding='utf-8') as f:
+                json.dump(DEFAULT_SETTINGS, f, indent=4)
+            logging.info(f"Created default settings.json at {path}")
+        except Exception as e:
+            logging.error(f"Failed to create default settings file: {e}")
+            # Fall back to in-memory defaults
+            return DEFAULT_SETTINGS.copy()
+    try:
+        with path.open('r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logging.error(f"Failed to read settings file, falling back to defaults: {e}")
+        return DEFAULT_SETTINGS.copy()
 
 
 class MapleBot:
@@ -271,18 +287,18 @@ class MapleBot:
             logging.debug("Chat alarm already active")
             return
         self.chat_alarm_active = True
-    logging.critical(f"Triggering CHAT alarm ({chat_label})")
+        logging.critical(f"Triggering CHAT alarm ({chat_label})")
 
-    def beep_loop_chat():
-        try:
-            import winsound
-            while self.chat_alarm_active:
-                winsound.Beep(1200, 400)
-                time.sleep(0.2)
-        except Exception:
-            while self.chat_alarm_active:
-                logging.critical("CHAT ALARM (no sound available on platform)")
-                time.sleep(1)
+        def beep_loop_chat():
+            try:
+                import winsound
+                while self.chat_alarm_active:
+                    winsound.Beep(1200, 400)
+                    time.sleep(0.2)
+            except Exception:
+                while self.chat_alarm_active:
+                    logging.critical("CHAT ALARM (no sound available on platform)")
+                    time.sleep(1)
 
         threading.Thread(target=beep_loop_chat, daemon=True).start()
 
@@ -310,18 +326,18 @@ class MapleBot:
             logging.debug("Other-user alarm already active")
             return
         self.other_user_alarm_active = True
-    logging.critical("Triggering OTHER-USER alarm — other player on map")
+        logging.critical("Triggering OTHER-USER alarm — other player on map")
 
-    def beep_loop_other():
-        try:
-            import winsound
-            while self.other_user_alarm_active:
-                winsound.Beep(1800, 500)
-                time.sleep(0.15)
-        except Exception:
-            while self.other_user_alarm_active:
-                logging.critical("OTHER-USER ALARM (no sound available on platform)")
-                time.sleep(1)
+        def beep_loop_other():
+            try:
+                import winsound
+                while self.other_user_alarm_active:
+                    winsound.Beep(1800, 500)
+                    time.sleep(0.15)
+            except Exception:
+                while self.other_user_alarm_active:
+                    logging.critical("OTHER-USER ALARM (no sound available on platform)")
+                    time.sleep(1)
 
         threading.Thread(target=beep_loop_other, daemon=True).start()
 
