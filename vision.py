@@ -199,6 +199,93 @@ class Vision:
             logging.error(f"Enemy anti-auto-play indicator detected at {locs[:3]}")
         return found
 
+    def _parse_color(self, color_val):
+        """Parse color from hex string like '#rrggbb' or 'r,g,b' into (B,G,R) tuple for OpenCV images."""
+        if isinstance(color_val, (list, tuple)) and len(color_val) == 3:
+            r, g, b = color_val
+            return (int(b), int(g), int(r))
+        if isinstance(color_val, str):
+            s = color_val.strip()
+            if s.startswith('#') and len(s) == 7:
+                r = int(s[1:3], 16)
+                g = int(s[3:5], 16)
+                b = int(s[5:7], 16)
+                return (b, g, r)
+            parts = [p.strip() for p in s.split(',')]
+            if len(parts) == 3:
+                r, g, b = map(int, parts)
+                return (b, g, r)
+        raise ValueError(f"Unsupported color format: {color_val}")
+
+    def detect_chat_event(self):
+        """Detect chat messages in the chat area by color.
+        Returns (found: bool, label: Optional[str]) where label is the matching chat type (e.g., 'whisper').
+        Uses settings:
+          - vision.chat_region: [x,y,w,h]
+          - vision.chat_colors: {label: color}
+          - vision.chat_color_tolerance: int (per-channel tolerance)
+          - vision.chat_pixel_ratio: float (fraction of pixels that must match)
+        """
+        if not self.settings.get('misc', {}).get('chat_detector', False):
+            return False, None
+
+        cfg = self.settings.get('vision', {})
+        region = cfg.get('chat_region', [10, 800, 400, 200])
+        try:
+            x, y, w, h = map(int, region)
+        except Exception:
+            x, y, w, h = 10, 800, 400, 200
+
+        img = self.capture_screen((x, y, w, h))
+        # Convert to BGR (already BGR) and sample
+        chat_colors = cfg.get('chat_colors', {})
+        tolerance = int(cfg.get('chat_color_tolerance', 30))
+        pixel_ratio = float(cfg.get('chat_pixel_ratio', 0.002))
+        h_img, w_img = img.shape[:2]
+        total_pixels = h_img * w_img
+
+        for label, color_val in chat_colors.items():
+            try:
+                target_bgr = self._parse_color(color_val)
+            except Exception:
+                logging.debug(f"Skipping invalid chat color for {label}: {color_val}")
+                continue
+            # Create mask where pixels are within tolerance
+            lower = np.array([max(0, c - tolerance) for c in target_bgr], dtype=np.uint8)
+            upper = np.array([min(255, c + tolerance) for c in target_bgr], dtype=np.uint8)
+            mask = cv2.inRange(img, lower, upper)
+            match_count = int(cv2.countNonZero(mask))
+            if match_count > max(3, int(total_pixels * pixel_ratio)):
+                logging.warning(f"Chat event detected: {label} (matches={match_count}) in region {region}")
+                return True, label
+
+        return False, None
+
+    def detect_other_user(self):
+        """Detect other players appearing on the screen using a template (e.g., nameplate/player sprite).
+        Uses settings['vision']['other_user_template'] and 'other_user_threshold'. Returns True if found.
+        """
+        if not self.settings.get('misc', {}).get('other_user_detector', False):
+            return False
+
+        other_template_setting = self.settings.get('vision', {}).get('other_user_template', '')
+        if not other_template_setting:
+            other_path = self.assets_path / 'ui_elements' / 'other_user.png'
+        else:
+            other_path = Path(other_template_setting)
+
+        try:
+            threshold = float(self.settings.get('vision', {}).get('other_user_threshold', 0.75))
+        except Exception:
+            threshold = 0.75
+
+        screenshot = self.capture_screen()
+        locs = self.find_template(str(other_path), screenshot, threshold)
+        found = len(locs) > 0
+        if found:
+            logging.error(f"Other user detected at {locs[:3]}")
+        return found
+
     def capture_nickname(self):
         # Assuming nickname is in a fixed region, e.g., above character
         nickname_region = (800, 800, 320, 50)  # Example region, adjust as needed

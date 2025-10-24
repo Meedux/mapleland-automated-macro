@@ -105,6 +105,22 @@ class MapleBot:
                         # give a short pause to avoid spamming
                         time.sleep(1)
                         continue
+                # Check for chat events (whispers/colored chat)
+                if self.settings.get('misc', {}).get('chat_detector', False):
+                    chat_found, chat_label = self.vision.detect_chat_event()
+                    if chat_found:
+                        logging.warning(f"Chat event ({chat_label}) detected — emergency stop")
+                        self.stop()
+                        self.trigger_chat_alarm(chat_label)
+                        break
+
+                # Check for other users on map
+                if self.settings.get('misc', {}).get('other_user_detector', False):
+                    if self.vision.detect_other_user():
+                        logging.error("Other user detected on map — emergency stop")
+                        self.stop()
+                        self.trigger_other_user_alarm()
+                        break
                 char_x, char_y, char_left = self.vision.find_character_coordinates()
                 if char_x is None:
                     logging.warning("Character not found, attempting to locate")
@@ -239,11 +255,68 @@ class MapleBot:
             except Exception as e:
                 logging.error(f"Failed to show enemy alarm popup: {e}")
 
+    def trigger_chat_alarm(self, chat_label: str = None):
+        """Trigger alarm for chat events (including whispers)."""
+        if getattr(self, 'chat_alarm_active', False):
+            logging.debug("Chat alarm already active")
+            return
+        self.chat_alarm_active = True
+        logging.critical(f"Triggering CHAT alarm ({chat_label})")
+
+        def beep_loop_chat():
+            try:
+                import winsound
+                while self.chat_alarm_active:
+                    winsound.Beep(1200, 400)
+                    time.sleep(0.2)
+            except Exception:
+                while self.chat_alarm_active:
+                    logging.critical("CHAT ALARM (no sound available on platform)")
+                    time.sleep(1)
+
+        threading.Thread(target=beep_loop_chat, daemon=True).start()
+
+        if hasattr(self, 'ui') and self.ui is not None:
+            msg = f"Chat message detected ({chat_label}). Pause automation and respond." if chat_label else "Chat message detected. Pause automation and respond."
+            try:
+                self.ui.root.after(0, lambda: self.ui.show_alarm_popup(msg))
+            except Exception as e:
+                logging.error(f"Failed to show chat alarm popup: {e}")
+
+    def trigger_other_user_alarm(self):
+        """Trigger alarm for when other users appear on the map."""
+        if getattr(self, 'other_user_alarm_active', False):
+            logging.debug("Other-user alarm already active")
+            return
+        self.other_user_alarm_active = True
+        logging.critical("Triggering OTHER-USER alarm — other player on map")
+
+        def beep_loop_other():
+            try:
+                import winsound
+                while self.other_user_alarm_active:
+                    winsound.Beep(1800, 500)
+                    time.sleep(0.15)
+            except Exception:
+                while self.other_user_alarm_active:
+                    logging.critical("OTHER-USER ALARM (no sound available on platform)")
+                    time.sleep(1)
+
+        threading.Thread(target=beep_loop_other, daemon=True).start()
+
+        if hasattr(self, 'ui') and self.ui is not None:
+            try:
+                self.ui.root.after(0, lambda: self.ui.show_alarm_popup("Other user(s) detected on the map — please respond manually."))
+            except Exception as e:
+                logging.error(f"Failed to show other-user alarm popup: {e}")
+
     def dismiss_alarm(self):
-        logging.info("Dismissing alarms (lie & enemy)")
+        logging.info("Dismissing alarms (lie, enemy, chat, other-user)")
         # Clear any active alarms
         self.alarm_active = False
         self.enemy_alarm_active = False
+        self.chat_alarm_active = False
+        self.other_user_alarm_active = False
         # Ensure UI popup is dismissed
         if hasattr(self, 'ui') and self.ui is not None:
             try:
