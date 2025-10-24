@@ -69,7 +69,6 @@ $addData = @(
     "easyocr_models;easyocr_models"
 )
 
-$addDataArgs = $addData | ForEach-Object { "--add-data `"$_`"" } | Out-String
 $pyinstallerExe = Join-Path $venvDir 'Scripts\pyinstaller.exe'
 if (-not (Test-Path $pyinstallerExe)) {
     Write-Host "PyInstaller not found in venv, installing..."
@@ -85,7 +84,31 @@ $modeFlag = if ($OneFile) { '--onefile' } else { '--onedir' }
 $windowed = '--windowed'
 
 Write-Host "Running PyInstaller (this may take a while)..."
-$pyCmd = "& `"$pyinstallerExe`" --noconfirm --clean $modeFlag $windowed $addDataArgs --hidden-import easyocr --hidden-import PIL --hidden-import cv2 --hidden-import numpy --name `$distName` main.py"
-Invoke-Expression $pyCmd
+
+# Build argument list safely to avoid quoting/parsing issues
+$args = @('--noconfirm', '--clean', $modeFlag, $windowed)
+
+foreach ($d in $addData) {
+    $args += '--add-data'
+    $args += $d
+}
+
+# Hidden imports
+$args += '--hidden-import'
+$args += 'easyocr'
+$args += '--hidden-import'
+$args += 'PIL'
+$args += '--hidden-import'
+$args += 'cv2'
+$args += '--hidden-import'
+$args += 'numpy'
+
+$args += '--name'
+$args += $distName
+
+# entry script
+$args += 'main.py'
+
+& $pyinstallerExe @args
 
 Write-Host "Build finished. Check the 'dist' folder for output."

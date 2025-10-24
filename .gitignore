@@ -120,3 +120,19 @@ Thumbs.db
 logs/
 screenshots/
 *.log
+
+# Build artifacts
+dist/
+build/
+*.spec
+
+# Virtual environments
+.venv/
+venv/
+
+# Bundled OCR models (may be large)
+easyocr_models/
+
+# OS/IDE
+Thumbs.db
+.DS_Store
