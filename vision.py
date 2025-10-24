@@ -4,6 +4,8 @@ import pyautogui
 import easyocr
 import re
 import logging
+import os
+import sys
 from typing import Any, Dict, Tuple, Optional, List
 from pathlib import Path
 
@@ -12,7 +14,20 @@ class Vision:
     def __init__(self, settings: Dict[str, Any]):
         self.settings = settings
         # Initialize EasyOCR reader for English (can add more languages if needed)
-        self.reader = easyocr.Reader(['en'], gpu=False)  # Set gpu=True if GPU available
+        # Prefer a bundled `easyocr_models` directory when frozen with PyInstaller.
+        model_dir_setting = self.settings.get('vision', {}).get('easyocr_model_dir', 'easyocr_models')
+        # If running from a PyInstaller bundle, files are unpacked to sys._MEIPASS
+        base = getattr(sys, '_MEIPASS', None) or os.path.abspath(os.path.dirname(__file__))
+        bundled_model_dir = os.path.join(base, model_dir_setting)
+        if os.path.isdir(bundled_model_dir):
+            try:
+                self.reader = easyocr.Reader(['en'], gpu=False, model_storage_directory=bundled_model_dir)
+            except Exception:
+                logging.warning(f"Failed to initialize EasyOCR with bundled models at {bundled_model_dir}, falling back to default initialization")
+                self.reader = easyocr.Reader(['en'], gpu=False)
+        else:
+            # Default initialization (will download models if they are missing)
+            self.reader = easyocr.Reader(['en'], gpu=False)  # Set gpu=True if GPU available
         self.assets_path = Path(settings.get('assets_path', 'assets'))
 
     def capture_screen(self, region=None):
