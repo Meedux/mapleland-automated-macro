@@ -4,6 +4,7 @@ import time
 import pyautogui
 import platform
 import logging
+import locales
 from pathlib import Path
 
 from combat import CombatManager
@@ -222,8 +223,13 @@ class MapleBot:
         # Show popup via UI if present
         if hasattr(self, 'ui') and self.ui is not None:
             try:
+                # localized message (prefer UI's current language)
+                try:
+                    msg = self.ui.lang.get('lie_alarm_msg')
+                except Exception:
+                    msg = locales.get_lang(self.settings.get('ui', {}).get('language', 'en')).get('lie_alarm_msg')
                 # Use tkinter-safe scheduling
-                self.ui.root.after(0, lambda: self.ui.show_alarm_popup("Lie detector detected! Click dismiss to continue."))
+                self.ui.root.after(0, lambda m=msg: self.ui.show_alarm_popup(m))
             except Exception as e:
                 logging.error(f"Failed to show alarm popup: {e}")
 
@@ -251,7 +257,11 @@ class MapleBot:
 
         if hasattr(self, 'ui') and self.ui is not None:
             try:
-                self.ui.root.after(0, lambda: self.ui.show_alarm_popup("Enemy detected near your character — emergency stop applied. Move to a neutral area and dismiss this alert."))
+                try:
+                    msg = self.ui.lang.get('enemy_alarm_msg')
+                except Exception:
+                    msg = locales.get_lang(self.settings.get('ui', {}).get('language', 'en')).get('enemy_alarm_msg')
+                self.ui.root.after(0, lambda m=msg: self.ui.show_alarm_popup(m))
             except Exception as e:
                 logging.error(f"Failed to show enemy alarm popup: {e}")
 
@@ -261,25 +271,36 @@ class MapleBot:
             logging.debug("Chat alarm already active")
             return
         self.chat_alarm_active = True
-        logging.critical(f"Triggering CHAT alarm ({chat_label})")
+    logging.critical(f"Triggering CHAT alarm ({chat_label})")
 
-        def beep_loop_chat():
-            try:
-                import winsound
-                while self.chat_alarm_active:
-                    winsound.Beep(1200, 400)
-                    time.sleep(0.2)
-            except Exception:
-                while self.chat_alarm_active:
-                    logging.critical("CHAT ALARM (no sound available on platform)")
-                    time.sleep(1)
+    def beep_loop_chat():
+        try:
+            import winsound
+            while self.chat_alarm_active:
+                winsound.Beep(1200, 400)
+                time.sleep(0.2)
+        except Exception:
+            while self.chat_alarm_active:
+                logging.critical("CHAT ALARM (no sound available on platform)")
+                time.sleep(1)
 
         threading.Thread(target=beep_loop_chat, daemon=True).start()
 
         if hasattr(self, 'ui') and self.ui is not None:
-            msg = f"Chat message detected ({chat_label}). Pause automation and respond." if chat_label else "Chat message detected. Pause automation and respond."
             try:
-                self.ui.root.after(0, lambda: self.ui.show_alarm_popup(msg))
+                try:
+                    if chat_label:
+                        tmpl = self.ui.lang.get('chat_alarm_msg_with_label')
+                        msg = tmpl.format(label=chat_label)
+                    else:
+                        msg = self.ui.lang.get('chat_alarm_msg')
+                except Exception:
+                    if chat_label:
+                        tmpl = locales.get_lang(self.settings.get('ui', {}).get('language', 'en')).get('chat_alarm_msg_with_label')
+                        msg = tmpl.format(label=chat_label)
+                    else:
+                        msg = locales.get_lang(self.settings.get('ui', {}).get('language', 'en')).get('chat_alarm_msg')
+                self.ui.root.after(0, lambda m=msg: self.ui.show_alarm_popup(m))
             except Exception as e:
                 logging.error(f"Failed to show chat alarm popup: {e}")
 
@@ -289,24 +310,28 @@ class MapleBot:
             logging.debug("Other-user alarm already active")
             return
         self.other_user_alarm_active = True
-        logging.critical("Triggering OTHER-USER alarm — other player on map")
+    logging.critical("Triggering OTHER-USER alarm — other player on map")
 
-        def beep_loop_other():
-            try:
-                import winsound
-                while self.other_user_alarm_active:
-                    winsound.Beep(1800, 500)
-                    time.sleep(0.15)
-            except Exception:
-                while self.other_user_alarm_active:
-                    logging.critical("OTHER-USER ALARM (no sound available on platform)")
-                    time.sleep(1)
+    def beep_loop_other():
+        try:
+            import winsound
+            while self.other_user_alarm_active:
+                winsound.Beep(1800, 500)
+                time.sleep(0.15)
+        except Exception:
+            while self.other_user_alarm_active:
+                logging.critical("OTHER-USER ALARM (no sound available on platform)")
+                time.sleep(1)
 
         threading.Thread(target=beep_loop_other, daemon=True).start()
 
         if hasattr(self, 'ui') and self.ui is not None:
             try:
-                self.ui.root.after(0, lambda: self.ui.show_alarm_popup("Other user(s) detected on the map — please respond manually."))
+                try:
+                    msg = self.ui.lang.get('other_user_alarm_msg')
+                except Exception:
+                    msg = locales.get_lang(self.settings.get('ui', {}).get('language', 'en')).get('other_user_alarm_msg')
+                self.ui.root.after(0, lambda m=msg: self.ui.show_alarm_popup(m))
             except Exception as e:
                 logging.error(f"Failed to show other-user alarm popup: {e}")
 
