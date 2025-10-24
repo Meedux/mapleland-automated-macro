@@ -11,11 +11,44 @@
   "potion": {
     "hp_threshold": 50,
     "mp_threshold": 30,
-    "hp_potion_key": "q",
-    "mp_potion_key": "w"
+    "hp_potion_key": "del",
+    "mp_potion_key": "end"
   },
   "vision": {
     "mob_templates_path": "assets/mob_templates",
-    "ui_elements_path": "assets/ui_elements"
+    "ui_elements_path": "assets/ui_elements",
+    "tesseract_path": "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
+    "assets_path": "assets"
+  },
+  "movement": {
+    "speed_factor": 117
+  },
+  "monsters": [
+    "leftjoo.png",
+    "rightjoo.png",
+    "leftblue.png",
+    "rightblue.png",
+    "leftslime.png",
+    "rightslime.png",
+    "leftstump.png",
+    "rightstump.png",
+    "leftgreen.png",
+    "rightgreen.png",
+    "rightred.png",
+    "leftred.png",
+    "leftgreenbu.png",
+    "rightgreenbu.png",
+    "joo3.png",
+    "joo1.png",
+    "joo2.png",
+    "slime.png",
+    "slime2.png",
+    "stump.png",
+    "greenbu.png",
+    "greenbu2.png"
+  ],
+  "ui": {
+    "language": "en",
+    "theme": "dark"
   }
 }

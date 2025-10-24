@@ -4,3 +4,4 @@ pynput
 Pillow
 numpy
 pytesseract
+customtkinter
