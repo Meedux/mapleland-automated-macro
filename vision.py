@@ -286,6 +286,54 @@ class Vision:
             logging.error(f"Other user detected at {locs[:3]}")
         return found
 
+    def detect_top_floor(self):
+        """Detect if the character is currently located on a designated top-floor area.
+        Uses optional settings['vision']['top_floor_template'] for template matching and
+        returns True if matched.
+        """
+        if not self.settings.get('misc', {}).get('top_floor_stoppage', False):
+            return False
+
+        tpl = self.settings.get('vision', {}).get('top_floor_template', '')
+        if not tpl:
+            tpl_path = self.assets_path / 'ui_elements' / 'top_floor.png'
+        else:
+            tpl_path = Path(tpl)
+
+        try:
+            threshold = float(self.settings.get('vision', {}).get('top_floor_threshold', 0.7))
+        except Exception:
+            threshold = 0.7
+
+        screenshot = self.capture_screen()
+        locs = self.find_template(str(tpl_path), screenshot, threshold)
+        found = len(locs) > 0
+        if found:
+            logging.info(f"Top-floor template detected at {locs[:3]}")
+        return found
+
+    def detect_map_ends_blocked(self):
+        """Heuristic to detect if both ends of the map show a dark 'blocked' area.
+        Samples small strips at left and right edges and checks mean brightness.
+        Returns True if both ends are sufficiently dark.
+        """
+        try:
+            screen = pyautogui.screenshot()
+            img = cv2.cvtColor(np.array(screen), cv2.COLOR_RGB2GRAY)
+            h, w = img.shape
+            edge_w = int(max(10, w * 0.03))
+            left_strip = img[ int(h*0.4):int(h*0.8), 0:edge_w ]
+            right_strip = img[ int(h*0.4):int(h*0.8), w-edge_w:w ]
+            left_mean = np.mean(left_strip)
+            right_mean = np.mean(right_strip)
+            # threshold for 'dark' area
+            if left_mean < 40 and right_mean < 40:
+                logging.info(f"Map ends appear blocked/dark (left_mean={left_mean:.1f}, right_mean={right_mean:.1f})")
+                return True
+        except Exception:
+            pass
+        return False
+
     def capture_nickname(self):
         # Assuming nickname is in a fixed region, e.g., above character
         nickname_region = (800, 800, 320, 50)  # Example region, adjust as needed

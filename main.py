@@ -4,6 +4,7 @@ import time
 import pyautogui
 import platform
 import logging
+import random
 import locales
 from pathlib import Path
 
@@ -49,6 +50,13 @@ class MapleBot:
         self.running = False
         self.simulation_mode = settings.get('debug', {}).get('simulation_mode', False)
         self.monster_paths = [Path(settings['vision']['assets_path']) / 'mob_templates' / img for img in settings['monsters']]
+        # Routes and diversification
+        self.routes = settings.get('routes', []) or []
+        self.current_route = None
+        self.route_selected_at = 0
+        self.route_switch_seconds = self.settings.get('misc', {}).get('route_switch_seconds', 300)
+        if self.routes:
+            self.select_random_route()
 
     def change_channel(self):
         logging.info("Starting channel change procedure")
@@ -93,11 +101,80 @@ class MapleBot:
             self.potion.check_and_use()
             time.sleep(1)
 
+    def select_random_route(self):
+        if not self.routes:
+            self.current_route = None
+            return
+        self.current_route = random.choice(self.routes)
+        self.route_selected_at = time.time()
+        logging.info(f"Selected autoplay route: {self.current_route.get('name','<unnamed>')}")
+
+    def execute_route_step(self, char_x, char_y, char_left):
+        """Execute a small randomized step from the current route to make movement look manual."""
+        if not self.current_route:
+            # fallback: simple patrol
+            self.movement.patrol()
+            return
+
+        left = int(self.current_route.get('left_boundary', 400))
+        right = int(self.current_route.get('right_boundary', 1520))
+        # pick a random x within boundaries to move to
+        target_x = random.randint(left, right)
+        logging.debug(f"Route step: moving to x={target_x} within [{left},{right}]")
+        try:
+            self.movement.move_character(char_x, target_x, char_left)
+        except Exception:
+            try:
+                self.movement.patrol()
+            except Exception:
+                pass
+        # random small pause to emulate thinking
+        time.sleep(random.uniform(0.8, 2.5))
+
     def simulate_or_execute(self, action_desc, func, *args, **kwargs):
         if self.simulation_mode:
             logging.info(f"SIMULATION: {action_desc}")
         else:
             func(*args, **kwargs)
+
+    def move_to_top_floor(self, char_x, char_y, char_left):
+        """Attempt to move the character to a configured top-floor target and jump up if needed."""
+        try:
+            target_x = None
+            cfg = self.settings.get('vision', {})
+            if 'top_floor_target_x' in cfg:
+                target_x = int(cfg.get('top_floor_target_x'))
+            elif 'top_floor_template' in cfg and cfg.get('top_floor_template'):
+                # try to find the top-floor template on screen
+                locs = self.vision.find_template(cfg.get('top_floor_template'))
+                if locs:
+                    target_x = locs[0][0]
+            # Fallback: move to screen center
+            if target_x is None:
+                w, h = pyautogui.size()
+                target_x = int(w // 2)
+
+            logging.info(f"Moving to top-floor target x={target_x}")
+            self.movement.move_character(char_x, target_x, char_left)
+            # attempt to jump up onto the top floor (up + alt)
+            pyautogui.keyDown('up')
+            pyautogui.keyDown('alt')
+            time.sleep(0.6)
+            pyautogui.keyUp('up')
+            pyautogui.keyUp('alt')
+        except Exception as e:
+            logging.error(f"Failed to move to top floor: {e}")
+
+    def escape_top_floor(self):
+        """Perform downward jump (down + alt) to escape the top floor."""
+        try:
+            pyautogui.keyDown('down')
+            pyautogui.keyDown('alt')
+            time.sleep(0.7)
+            pyautogui.keyUp('down')
+            pyautogui.keyUp('alt')
+        except Exception as e:
+            logging.error(f"Failed to perform top-floor escape: {e}")
 
     def main_logic(self):
         logging.info("Main logic thread started")
@@ -154,6 +231,23 @@ class MapleBot:
                     continue
 
                 logging.debug(f"Character at ({char_x}, {char_y}), direction: {'left' if char_left else 'right'}")
+                # Top-floor stoppage handling: if player falls into end-block zones, attempt to move to top floor
+                if self.settings.get('misc', {}).get('top_floor_stoppage', False):
+                    try:
+                        if self.vision.detect_map_ends_blocked():
+                            logging.info("Detected map ends blocked - moving to top floor target")
+                            self.move_to_top_floor(char_x, char_y, char_left)
+                            # after handling, skip further actions this tick
+                            time.sleep(1)
+                            continue
+                        # If currently on top floor, automatically attempt downward jump to escape
+                        if self.vision.detect_top_floor():
+                            logging.info("On top floor - performing down+alt escape")
+                            self.escape_top_floor()
+                            time.sleep(1)
+                            continue
+                    except Exception:
+                        pass
                 monster = self.combat.find_targets(self.monster_paths, char_y, char_x, char_left)
                 if monster:
                     logging.info(f"Monster found at {monster}, attacking")
@@ -166,8 +260,21 @@ class MapleBot:
                         logging.info(f"Rope found at {closest_rope}, climbing")
                         self.movement.climb_rope(closest_rope[0], closest_rope[1], char_x, char_left)
                     else:
-                        logging.debug("No ropes found, patrolling")
-                        self.movement.patrol()
+                        logging.debug("No ropes found, executing route or patrol")
+                        # Route diversification: periodically switch routes
+                        try:
+                            if self.routes and (time.time() - self.route_selected_at) > self.route_switch_seconds:
+                                self.select_random_route()
+                        except Exception:
+                            pass
+                        # Execute a route step (will fallback to patrol)
+                        try:
+                            self.execute_route_step(char_x, char_y, char_left)
+                        except Exception:
+                            try:
+                                self.movement.patrol()
+                            except Exception:
+                                pass
 
                 hp_current, hp_max, mp_current, mp_max = self.vision.read_hp_mp()
                 self.debug_overlay.update(hp_current, hp_max, mp_current, mp_max, char_x, char_y, "Searching for monsters")
