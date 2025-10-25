@@ -47,6 +47,16 @@ LANGS = {
         'invalid_routes_json': 'Invalid routes JSON',
         'invalid_buffs_json': 'Invalid buffs JSON',
         'alarm_no_sound': 'ALARM (no sound available on platform)'
+        ,
+        'select_window': 'Select Game Window',
+        'window_utils_not_supported': 'Window selection is only supported on Windows.',
+        'no_windows_found': 'No visible windows found.',
+        'no_window_selected': 'Please select a window first.',
+        'invalid_selection': 'Invalid selection',
+        'window_focused': 'Window focused successfully',
+        'window_focus_failed': 'Could not bring window to foreground; please focus it manually.',
+        'ok': 'OK',
+        'cancel': 'Cancel'
     },
     'ko': {
         'title': '메이플랜드 봇',
@@ -93,7 +103,18 @@ LANGS = {
         'invalid_routes_json': '경로 JSON이 잘못되었습니다',
         'invalid_buffs_json': '버프 JSON이 잘못되었습니다',
         'alarm_no_sound': '경보(플랫폼에서 소리를 사용할 수 없습니다)'
+        ,
+        'select_window': '게임 창 선택',
+        'window_utils_not_supported': '창 선택은 Windows에서만 지원됩니다.',
+        'no_windows_found': '보이는 창이 없습니다.',
+        'no_window_selected': '먼저 창을 선택하세요.',
+        'invalid_selection': '잘못된 선택',
+        'window_focused': '창을 활성화했습니다',
+        'window_focus_failed': '창을 전경으로 가져올 수 없습니다; 수동으로 포커스하세요.',
+        'ok': '확인',
+        'cancel': '취소'
     }
+
 }
 
 

@@ -43,9 +43,13 @@
         "lie_template": "assets/ui_elements/polygraph.png",
         "lie_threshold": 0.7,
         "enemy_template": "assets/ui_elements/enemy_alert.png",
-        "enemy_threshold": 0.7
-        ,
-        "chat_region": [10, 800, 400, 200],
+        "enemy_threshold": 0.7,
+        "chat_region": [
+            10,
+            800,
+            400,
+            200
+        ],
         "chat_color_tolerance": 30,
         "chat_pixel_ratio": 0.002,
         "chat_colors": {
@@ -143,7 +147,8 @@
     },
     "ui": {
         "language": "en",
-        "theme": "dark"
+        "theme": "dark",
+        "game_window_title": "#general | Lepin - Discord"
     },
     "debug": {
         "enable_debug": false,

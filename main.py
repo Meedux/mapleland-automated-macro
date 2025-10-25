@@ -7,6 +7,7 @@ import logging
 import random
 import locales
 from pathlib import Path
+import window_utils
 
 from combat import CombatManager
 from movement import MovementManager
@@ -291,6 +292,7 @@ class MapleBot:
 
     def start(self):
         logging.info("Attempting to start MapleBot")
+        # Preconditions check (UI triggers auto-detect/focus before calling start)
         issues = self.verify_preconditions()
         if issues:
             logging.error("Bot start failed due to precondition failures")
@@ -497,7 +499,56 @@ class MapleBot:
         
         if not issues:
             logging.info("All preconditions verified successfully")
+        # If user configured a specific game window, ensure it exists and attempt to focus it
+        try:
+            game_win_title = self.settings.get('ui', {}).get('game_window_title')
+            if game_win_title:
+                hwnd = None
+                try:
+                    hwnd = window_utils.find_window_by_title(game_win_title)
+                except Exception as e:
+                    logging.warning(f"Window lookup failed: {e}")
+                if not hwnd:
+                    issues.append(f"Configured game window not found: {game_win_title}")
+                    logging.warning(f"Configured game window not found: {game_win_title}")
+                else:
+                    try:
+                        ok = window_utils.focus_window(hwnd)
+                        if ok:
+                            logging.info(f"Focused configured game window: {game_win_title}")
+                        else:
+                            logging.warning(f"Could not focus configured game window: {game_win_title}")
+                    except Exception as e:
+                        logging.warning(f"Failed to focus configured game window: {e}")
+        except Exception:
+            pass
         return issues
+
+    def auto_detect_and_focus_window(self) -> bool:
+        """Attempt to focus the configured game window (by title) if present.
+
+        This function intentionally does NOT enumerate and attempt to focus every open
+        window to avoid stealing focus during the Start flow. It will return True if the
+        configured title was found and the window was focused; otherwise False.
+        """
+        try:
+            cfg_title = self.settings.get('ui', {}).get('game_window_title')
+            if not cfg_title:
+                return False
+            try:
+                hwnd = window_utils.find_window_by_title(cfg_title)
+                if hwnd:
+                    ok = window_utils.focus_window(hwnd)
+                    if ok:
+                        logging.info(f"Focused configured game window: {cfg_title}")
+                        return True
+                    else:
+                        logging.warning(f"Could not focus configured game window: {cfg_title}")
+            except Exception as e:
+                logging.debug(f"Configured window lookup failed: {e}")
+        except Exception:
+            logging.exception('Error during auto-detect game window')
+        return False
 
 
 def main():
@@ -512,6 +563,8 @@ def main():
     ui = MapleBotUI(settings, bot.start, bot.stop, settings_path, bot.update_settings)
     # give bot a reference to UI so it can pop up alarms
     bot.ui = ui
+    # give UI a reference back to the bot for window auto-detection
+    ui.bot = bot
     # allow UI to notify bot to dismiss alarms
     ui.alarm_dismiss_callback = bot.dismiss_alarm
     ui.run()

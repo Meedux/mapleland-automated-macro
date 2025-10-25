@@ -9,6 +9,9 @@ import tkinter as tk
 from tkinter import scrolledtext
 import pyautogui
 import locales
+import window_utils
+import tkinter.messagebox as messagebox
+import json
 
 
 class MapleBotUI:
@@ -79,6 +82,8 @@ class MapleBotUI:
         # Control placeholders
         self.lang_button = ctk.CTkButton(self.controls_col, text=self.lang['switch_lang'], command=self.switch_language)
         self.lang_button.pack(pady=(6,4), padx=8, fill='x')
+
+        
 
         # Logs header with toolbar
         logs_header = ctk.CTkFrame(self.logs_col, fg_color='transparent')
@@ -232,6 +237,17 @@ class MapleBotUI:
 
     def start_bot(self):
         if not self.running:
+            # Show the select-window modal immediately when Start is pressed.
+            try:
+                selected_hwnd = self._prompt_select_window()
+                if not selected_hwnd:
+                    # user cancelled or selection failed
+                    return
+            except Exception:
+                logging.exception('Error during select-window flow')
+                return
+
+            # At this point the selected window has been focused and validated by the modal.
             success = self.start_callback()
             if success:
                 self.running = True
@@ -500,6 +516,224 @@ class MapleBotUI:
         resolution_str = f"{width}x{height}"
         entry.delete(0, "end")
         entry.insert(0, resolution_str)
+
+    def _prompt_select_window(self) -> bool:
+        """Show a modern modal (CTk) allowing the user to pick the game window.
+
+        Returns True if user cancelled, False if a window was selected and saved.
+        """
+        try:
+            try:
+                wins = window_utils.list_windows()
+            except OSError:
+                messagebox.showinfo(self.lang.get('select_window','Select Game Window'), self.lang.get('window_utils_not_supported','Window selection is only supported on Windows.'))
+                return True
+
+            if not wins:
+                messagebox.showinfo(self.lang.get('select_window','Select Game Window'), self.lang.get('no_windows_found','No visible windows found.'))
+                return True
+
+            # Build modern CTk modal
+            dlg = ctk.CTkToplevel(self.root)
+            dlg.title(self.lang.get('select_window','Select Game Window'))
+            dlg.geometry('760x420')
+            dlg.transient(self.root)
+            dlg.grab_set()
+
+            left = ctk.CTkFrame(dlg, width=360)
+            left.pack(side='left', fill='y', padx=(12,6), pady=12)
+            left.pack_propagate(False)
+
+            right = ctk.CTkFrame(dlg)
+            right.pack(side='right', fill='both', expand=True, padx=(6,12), pady=12)
+
+            # Search box
+            search_var = tk.StringVar()
+            search_entry = ctk.CTkEntry(left, placeholder_text=self.lang.get('search','Search...'), textvariable=search_var)
+            search_entry.pack(fill='x', padx=8, pady=(6,6))
+
+            list_frame = ctk.CTkScrollableFrame(left)
+            list_frame.pack(fill='both', expand=True, padx=8, pady=6)
+
+            # Create buttons per window
+            items = []
+            selected = {'hwnd': None, 'title': None}
+
+            def make_item(hwnd, title):
+                btn = ctk.CTkButton(list_frame, text=title if len(title) < 80 else title[:77] + '...', anchor='w', width=320, fg_color='transparent', hover=False)
+                def on_click():
+                    selected['hwnd'] = hwnd
+                    selected['title'] = title
+                    _show_preview(hwnd, title)
+                    # highlight selection by changing fg_color
+                    for b, _ in items:
+                        try:
+                            b.configure(fg_color='transparent')
+                        except Exception:
+                            pass
+                    try:
+                        btn.configure(fg_color='#2b2b2b')
+                    except Exception:
+                        pass
+                btn.configure(command=on_click)
+                btn.pack(fill='x', pady=4, padx=4)
+                return btn
+
+            for hwnd, title in wins:
+                b = make_item(hwnd, title)
+                items.append((b, (hwnd, title)))
+
+            # Preview area
+            preview_label = ctk.CTkLabel(right, text=self.lang.get('preview','Preview'))
+            preview_label.pack(anchor='nw', padx=6, pady=(6,2))
+            preview_canvas = ctk.CTkFrame(right, height=260, fg_color='#1f1f1f')
+            preview_canvas.pack(fill='both', padx=6, pady=(0,6), expand=False)
+            preview_canvas.pack_propagate(False)
+
+            # Image placeholder
+            preview_img_label = ctk.CTkLabel(preview_canvas, text='')
+            preview_img_label.pack(expand=True)
+
+            details_label = ctk.CTkLabel(right, text='')
+            details_label.pack(anchor='nw', padx=6)
+
+            # Helper to show preview by focusing briefly and taking a screenshot
+            try:
+                from PIL import Image, ImageTk
+                PIL_AVAILABLE = True
+            except Exception:
+                PIL_AVAILABLE = False
+
+            def _show_preview(hwnd, title):
+                # Do NOT focus windows during preview. Only update textual preview info.
+                details_label.configure(text=title)
+                if not PIL_AVAILABLE:
+                    preview_img_label.configure(text=self.lang.get('preview_unavailable','Preview unavailable (Pillow missing)'))
+                    return
+                try:
+                    # Optionally, show a generic placeholder or small screenshot of current screen
+                    img = pyautogui.screenshot()
+                    w, h = img.size
+                    target_w = min(640, int(w * 0.12))
+                    target_h = int(target_w * (h / w))
+                    thumb = img.resize((target_w, target_h))
+                    photo = ImageTk.PhotoImage(thumb)
+                    preview_img_label.configure(image=photo, text='')
+                    preview_img_label.image = photo
+                except Exception:
+                    preview_img_label.configure(text=self.lang.get('preview_failed','Preview failed'))
+
+            # Footer buttons (fixed height to avoid overlap; Confirm will be centered)
+            footer = ctk.CTkFrame(dlg)
+            footer.configure(height=80)
+            footer.pack(fill='x', padx=12, pady=(0,12))
+            footer.pack_propagate(False)
+
+            selected = {'hwnd': None, 'title': None}
+
+            def _confirm():
+                if not selected['hwnd']:
+                    messagebox.showwarning(self.lang.get('select_window','Select Game Window'), self.lang.get('no_window_selected','Please select a window first.'))
+                    return
+                # persist selection
+                try:
+                    self.settings.setdefault('ui', {})['game_window_title'] = selected['title']
+                    with self.settings_path.open('w', encoding='utf-8') as f:
+                        json.dump(self.settings, f, indent=4)
+                except Exception:
+                    logging.exception('Failed to save selected window to settings')
+                # try to focus one last time
+                try:
+                    ok = window_utils.focus_window(selected['hwnd'])
+                except Exception:
+                    ok = False
+                if not ok:
+                    messagebox.showwarning(self.lang.get('select_window','Select Game Window'), self.lang.get('window_focus_failed','Could not bring window to foreground; please focus it manually.'))
+                    return
+                # Give OS a moment to update, then verify game UI via Vision
+                time.sleep(0.25)
+                try:
+                    if hasattr(self, 'bot') and getattr(self.bot, 'vision', None) is not None:
+                        x, y, left_dir = self.bot.vision.find_character_coordinates()
+                    else:
+                        x = None
+                except Exception:
+                    x = None
+                if x is None:
+                    messagebox.showerror(self.lang.get('select_window','Select Game Window'), self.lang.get('window_detect_failed','Could not detect game UI in the focused window. Make sure the game is visible and try again.'))
+                    return
+                # success
+                messagebox.showinfo(self.lang.get('select_window','Select Game Window'), self.lang.get('window_focused','Window focused successfully'))
+                dlg.grab_release()
+                dlg.destroy()
+
+            def _cancel():
+                dlg.grab_release()
+                dlg.destroy()
+
+            # Arrange footer vertically: top row has Cancel (left) and Refresh (right) side-by-side,
+            # bottom row has the Confirm button centered. This is more robust across DPI/scaling.
+            footer.grid_columnconfigure(0, weight=1)
+            footer.grid_columnconfigure(1, weight=1)
+
+            # Refresh button will re-enumerate windows (useful if new windows opened while modal is shown)
+            def _refresh_windows():
+                try:
+                    wins_new = window_utils.list_windows()
+                except Exception:
+                    wins_new = []
+                # clear existing items
+                for b, _ in list(items):
+                    try:
+                        b.destroy()
+                    except Exception:
+                        pass
+                items.clear()
+                selected['hwnd'] = None
+                selected['title'] = None
+                for hwnd, title in wins_new:
+                    b = make_item(hwnd, title)
+                    items.append((b, (hwnd, title)))
+
+            # Build a top row frame for the two smaller side-by-side buttons
+            top_row = ctk.CTkFrame(footer)
+            top_row.pack(fill='x', padx=12, pady=(8,6))
+
+            left_top_btn = ctk.CTkButton(top_row, text=self.lang.get('cancel','Cancel'), command=_cancel, width=120)
+            left_top_btn.pack(side='left', anchor='w', padx=(0,8))
+
+            refresh_btn = ctk.CTkButton(top_row, text=self.lang.get('refresh','Refresh'), command=_refresh_windows, width=120)
+            refresh_btn.pack(side='right', anchor='e', padx=(8,0))
+
+            # Bottom row for Confirm (centered)
+            bottom_row = ctk.CTkFrame(footer)
+            bottom_row.pack(fill='x', padx=12, pady=(0,8))
+
+            confirm_btn = ctk.CTkButton(bottom_row, text=self.lang.get('confirm','Confirm'), command=_confirm, width=260)
+            confirm_btn.pack(pady=4)
+
+            # Simple search/filter implementation
+            def _on_search(*_):
+                q = search_var.get().lower()
+                for b, (hwnd, title) in items:
+                    visible = (q in title.lower()) if q else True
+                    try:
+                        if visible:
+                            b.pack_configure()
+                        else:
+                            b.pack_forget()
+                    except Exception:
+                        pass
+
+            search_var.trace_add('write', _on_search)
+
+            self.root.wait_window(dlg)
+            return selected.get('hwnd')
+        except Exception as e:
+            logging.exception(f"Error opening window selector: {e}")
+            return True
+
+    
 
     def save_settings(self):
         # Update settings from entries
